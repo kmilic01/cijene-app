@@ -25,6 +25,137 @@ def health():
     return {"status": "OK"}
 
 
+@app.get("/search")
+def search_products(
+    query: str = Query(..., min_length=2),
+    limit: int = Query(20, ge=1, le=100)
+):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT DISTINCT
+            barcode,
+            name,
+            brand,
+            category,
+            quantity
+        FROM products
+        WHERE LOWER(name) LIKE LOWER(%s)
+        ORDER BY name
+        LIMIT %s
+    """, (f"%{query}%", limit))
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "barcode": row[0],
+            "name": row[1],
+            "brand": row[2],
+            "category": row[3],
+            "quantity": row[4]
+        }
+        for row in rows
+    ]
+
+
+@app.get("/product/{barcode}/prices")
+def product_prices(
+    barcode: str,
+    city: str | None = None,
+    chain: str | None = None
+):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    sql = """
+        SELECT
+            c.name,
+            s.store_id,
+            s.type,
+            s.address,
+            s.city,
+            p.name,
+            p.brand,
+            p.category,
+            pr.price,
+            pr.unit_price,
+            pr.best_price_30,
+            pr.special_price,
+            pr.import_date
+        FROM products p
+        JOIN chains c ON p.chain_id = c.id
+        JOIN prices pr
+            ON pr.chain_id = p.chain_id
+            AND pr.product_id = p.product_id
+        JOIN stores s
+            ON s.chain_id = pr.chain_id
+            AND s.store_id = pr.store_id
+        WHERE p.barcode = %s
+    """
+
+    params = [barcode]
+
+    if city:
+        sql += " AND LOWER(s.city) = LOWER(%s)"
+        params.append(city)
+
+    if chain:
+        sql += " AND LOWER(c.name) = LOWER(%s)"
+        params.append(chain)
+
+    sql += " ORDER BY pr.price ASC NULLS LAST"
+
+    cur.execute(sql, params)
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [
+        {
+            "chain": row[0],
+            "store_id": row[1],
+            "store_type": row[2],
+            "address": row[3],
+            "city": row[4],
+            "product_name": row[5],
+            "brand": row[6],
+            "category": row[7],
+            "price": float(row[8]) if row[8] is not None else None,
+            "unit_price": float(row[9]) if row[9] is not None else None,
+            "best_price_30": float(row[10]) if row[10] is not None else None,
+            "special_price": float(row[11]) if row[11] is not None else None,
+            "import_date": str(row[12]) if row[12] is not None else None
+        }
+        for row in rows
+    ]
+
+
+@app.get("/cities")
+def cities():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT DISTINCT city
+        FROM stores
+        WHERE city IS NOT NULL
+        ORDER BY city
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [row[0] for row in rows]
+
+
 @app.get("/products/{lanac}")
 def products(lanac: str, limit: int = Query(20, ge=1, le=500)):
     conn = get_connection()
