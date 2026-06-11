@@ -1,18 +1,28 @@
-import sqlite3
+import os
+import psycopg2
+from dotenv import load_dotenv
 
-connection = sqlite3.connect("cijene.db")
+load_dotenv()
+
+print("HOST:", os.getenv("DB_HOST"))
+print("DATABASE_URL:", os.getenv("DATABASE_URL"))
+
+connection = psycopg2.connect(
+    os.getenv("DATABASE_URL")
+)
+
 cursor = connection.cursor()
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS chains (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     name TEXT NOT NULL UNIQUE
 )
 """)
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS stores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     chain_id INTEGER NOT NULL,
     store_id TEXT NOT NULL,
     type TEXT,
@@ -25,7 +35,7 @@ CREATE TABLE IF NOT EXISTS stores (
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS products (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     chain_id INTEGER NOT NULL,
     product_id TEXT NOT NULL,
     barcode TEXT,
@@ -40,21 +50,22 @@ CREATE TABLE IF NOT EXISTS products (
 
 cursor.execute("""
 CREATE TABLE IF NOT EXISTS prices (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    id SERIAL PRIMARY KEY,
     chain_id INTEGER NOT NULL,
     store_id TEXT NOT NULL,
     product_id TEXT NOT NULL,
-    price REAL,
-    unit_price REAL,
-    best_price_30 REAL,
-    anchor_price REAL,
-    special_price REAL,
-    import_date TEXT,
+    price NUMERIC,
+    unit_price NUMERIC,
+    best_price_30 NUMERIC,
+    anchor_price NUMERIC,
+    special_price NUMERIC,
+    import_date DATE,
     FOREIGN KEY (chain_id) REFERENCES chains(id)
 )
 """)
 
 connection.commit()
+cursor.close()
 connection.close()
 
-print("Baza je uspješno kreirana!")
+print("PostgreSQL tablice su uspješno kreirane!")

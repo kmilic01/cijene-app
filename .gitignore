@@ -3,3 +3,4 @@ __pycache__/
 archive.zip
 cijene.db
 podaci/
+.env
