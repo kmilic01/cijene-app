@@ -2,6 +2,7 @@ from fastapi import FastAPI, Query
 import os
 import psycopg2
 from dotenv import load_dotenv
+from typing import Optional
 
 load_dotenv()
 
@@ -66,14 +67,15 @@ def search_products(
 @app.get("/product/{barcode}/prices")
 def product_prices(
     barcode: str,
-    city: str | None = None,
-    chain: str | None = None
+    city: Optional[str] = None,
+    chain: Optional[str] = None,
+    sort: str = "asc"
 ):
     conn = get_connection()
     cur = conn.cursor()
 
     sql = """
-        SELECT
+        SELECT DISTINCT
             c.name,
             s.store_id,
             s.type,
@@ -108,7 +110,12 @@ def product_prices(
         sql += " AND LOWER(c.name) = LOWER(%s)"
         params.append(chain)
 
-    sql += " ORDER BY pr.price ASC NULLS LAST"
+    if sort == "desc":
+        sql += " ORDER BY pr.price DESC NULLS LAST"
+    else:
+        sql += " ORDER BY pr.price ASC NULLS LAST"
+    
+    sql += " LIMIT 200"
 
     cur.execute(sql, params)
     rows = cur.fetchall()
@@ -119,21 +126,79 @@ def product_prices(
     return [
         {
             "chain": row[0],
-            "store_id": row[1],
-            "store_type": row[2],
+            #"store_id": row[1],
+            #"store_type": row[2],
             "address": row[3],
             "city": row[4],
             "product_name": row[5],
-            "brand": row[6],
-            "category": row[7],
+            #"brand": row[6],
+            #"category": row[7],
             "price": float(row[8]) if row[8] is not None else None,
             "unit_price": float(row[9]) if row[9] is not None else None,
             "best_price_30": float(row[10]) if row[10] is not None else None,
             "special_price": float(row[11]) if row[11] is not None else None,
-            "import_date": str(row[12]) if row[12] is not None else None
+            #"import_date": str(row[12]) if row[12] is not None else None
         }
         for row in rows
     ]
+
+
+@app.get("/cheapest/{barcode}")
+def cheapest_product(
+    barcode: str,
+    city: Optional[str] = None
+):
+    conn = get_connection()
+    cur = conn.cursor()
+
+    sql = """
+        SELECT
+            c.name,
+            s.city,
+            s.address,
+            pr.price,
+            p.name
+        FROM products p
+        JOIN chains c
+            ON p.chain_id = c.id
+        JOIN prices pr
+            ON pr.chain_id = p.chain_id
+            AND pr.product_id = p.product_id
+        JOIN stores s
+            ON s.chain_id = pr.chain_id
+            AND s.store_id = pr.store_id
+        WHERE p.barcode = %s
+            AND pr.price IS NOT NULL
+    """
+
+    params = [barcode]
+
+    if city:
+        sql += " AND LOWER(s.city) = LOWER(%s)"
+        params.append(city)
+
+    sql += """
+        ORDER BY pr.price ASC
+        LIMIT 1
+    """
+
+    cur.execute(sql, params)
+
+    row = cur.fetchone()
+
+    cur.close()
+    conn.close()
+
+    if not row:
+        return {"message": "Proizvod nije pronađen"}
+
+    return {
+        "product_name": row[4],
+        "chain": row[0],
+        "city": row[1],
+        "address": row[2],
+        "price": float(row[3])
+    }
 
 
 @app.get("/cities")
@@ -155,6 +220,45 @@ def cities():
 
     return [row[0] for row in rows]
 
+
+@app.get("/chains")
+def chains():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT name
+        FROM chains
+        ORDER BY name
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [row[0] for row in rows]
+
+
+'''@app.get("/categories")
+def categories():
+    conn = get_connection()
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT DISTINCT category
+        FROM products
+        WHERE category IS NOT NULL
+        ORDER BY category
+    """)
+
+    rows = cur.fetchall()
+
+    cur.close()
+    conn.close()
+
+    return [row[0] for row in rows]
+'''
 
 @app.get("/products/{lanac}")
 def products(lanac: str, limit: int = Query(20, ge=1, le=500)):
