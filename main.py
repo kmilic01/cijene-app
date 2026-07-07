@@ -3,6 +3,7 @@ import os
 import psycopg2
 from dotenv import load_dotenv
 from typing import Optional
+from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
 
@@ -10,6 +11,17 @@ app = FastAPI(
     title="Cijene proizvoda",
     description="Završni rad - analiza cijena proizvoda",
     version="1.0.0"
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:5173",
+        "https://cijene-app.onrender.com"
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 def get_connection():
