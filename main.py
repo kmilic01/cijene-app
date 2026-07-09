@@ -2,7 +2,7 @@ from fastapi import FastAPI, Query
 import os
 import psycopg2
 from dotenv import load_dotenv
-from typing import Optional
+from typing import Optional, List
 from fastapi.middleware.cors import CORSMiddleware
 
 load_dotenv()
@@ -95,8 +95,8 @@ def search_products(
 @app.get("/product/{barcode}/prices")
 def product_prices(
     barcode: str,
-    city: Optional[str] = None,
-    chain: Optional[str] = None,
+    city: Optional[List[str]] = Query(None),
+    chain: Optional[List[str]] = Query(None),
     sort: str = "asc"
 ):
     conn = get_connection()
@@ -132,12 +132,12 @@ def product_prices(
     params = [barcode]
 
     if city:
-        sql += " AND LOWER(s.city) = LOWER(%s)"
-        params.append(city)
+        sql += " AND LOWER(s.city) = ANY(%s)"
+        params.append([c.lower() for c in city])
 
     if chain:
-        sql += " AND LOWER(c.name) = LOWER(%s)"
-        params.append(chain)
+        sql += " AND LOWER(c.name) = ANY(%s)"
+        params.append([ch.lower() for ch in chain])
 
     if sort == "desc":
         sql += " ORDER BY pr.price DESC NULLS LAST"

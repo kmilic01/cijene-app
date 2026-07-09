@@ -12,8 +12,8 @@ function App() {
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [prices, setPrices] = useState([])
 
-  const [selectedChain, setSelectedChain] = useState('')
-  const [selectedCity, setSelectedCity] = useState('')
+  const [selectedChains, setSelectedChains] = useState([])
+  const [selectedCities, setSelectedCities] = useState([])
   const [sortOrder, setSortOrder] = useState('asc')
 
   const [chains, setChains] = useState([])
@@ -50,8 +50,8 @@ function App() {
 
     setSelectedProduct(null)
     setPrices([])
-    setSelectedChain('')
-    setSelectedCity('')
+    setSelectedChains([])
+    setSelectedCities([])
     setSortOrder('asc')
 
     const timeoutId = setTimeout(async () => {
@@ -81,8 +81,8 @@ function App() {
 
   async function selectProduct(
     product,
-    chain = selectedChain,
-    city = selectedCity,
+    chains = selectedChains,
+    cities = selectedCities,
     sort = sortOrder
   ) {
     setSelectedProduct(product)
@@ -92,11 +92,11 @@ function App() {
 
     let url = `${API_URL}/product/${product.barcode}/prices?sort=${sort}`
 
-    if (chain) {
+    for (const chain of chains) {
       url += `&chain=${encodeURIComponent(chain)}`
     }
 
-    if (city) {
+    for (const city of cities) {
       url += `&city=${encodeURIComponent(city)}`
     }
 
@@ -107,10 +107,10 @@ function App() {
   }
 
   function resetFilters() {
-    setSelectedChain('')
-    setSelectedCity('')
+    setSelectedChains([])
+    setSelectedCities([])
     setSortOrder('asc')
-    selectProduct(selectedProduct, '', '', 'asc')
+    selectProduct(selectedProduct, [], [], 'asc')
   }
 
   const validPrices = prices.filter((item) => item.price !== null)
@@ -164,14 +164,14 @@ function App() {
 
           <div className="filters">
             <select
-              value={selectedChain}
+              multiple
+              value={selectedChains}
               onChange={(e) => {
-                setSelectedChain(e.target.value)
-                selectProduct(selectedProduct, e.target.value, selectedCity, sortOrder)
+                const values = Array.from(e.target.selectedOptions, (o) => o.value)
+                setSelectedChains(values)
+                selectProduct(selectedProduct, values, selectedCities, sortOrder)
               }}
             >
-              <option value="">Svi lanci</option>
-
               {chains.map((chain) => (
                 <option key={chain} value={chain}>
                   {chain.charAt(0).toUpperCase() + chain.slice(1)}
@@ -180,14 +180,14 @@ function App() {
             </select>
 
             <select
-              value={selectedCity}
+              multiple
+              value={selectedCities}
               onChange={(e) => {
-                setSelectedCity(e.target.value)
-                selectProduct(selectedProduct, selectedChain, e.target.value, sortOrder)
+                const values = Array.from(e.target.selectedOptions, (o) => o.value)
+                setSelectedCities(values)
+                selectProduct(selectedProduct, selectedChains, values, sortOrder)
               }}
             >
-              <option value="">Svi gradovi</option>
-
               {cities.map((city) => (
                 <option key={city} value={city}>
                   {city}
@@ -199,7 +199,7 @@ function App() {
               value={sortOrder}
               onChange={(e) => {
                 setSortOrder(e.target.value)
-                selectProduct(selectedProduct, selectedChain, selectedCity, e.target.value)
+                selectProduct(selectedProduct, selectedChains, selectedCities, e.target.value)
               }}
             >
               <option value="asc">Najjeftinije prvo</option>
