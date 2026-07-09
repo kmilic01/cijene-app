@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import './App.css'
 
 const API_URL = 'https://cijene-app.onrender.com'
+//const API_URL = 'http://127.0.0.1:8000'
 
 function App() {
   const [query, setQuery] = useState('')
@@ -241,6 +242,7 @@ function App() {
                 <th>Grad</th>
                 <th>Adresa</th>
                 <th>Cijena</th>
+                <th>Količina</th>
                 <th>Karta</th>
               </tr>
             </thead>
@@ -259,6 +261,7 @@ function App() {
                   <td>{item.city}</td>
                   <td>{item.address}</td>
                   <td>{item.price} €</td>
+                  <td>{item.quantity}</td>
                   <td>
                     <a
                       href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(

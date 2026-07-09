@@ -52,12 +52,28 @@ def search_products(
             name,
             brand,
             category,
-            quantity
+            quantity,
+            CASE
+                WHEN LOWER(brand) LIKE LOWER(%s) THEN 1
+                WHEN LOWER(name)  LIKE LOWER(%s) THEN 2
+                WHEN LOWER(name)  LIKE LOWER(%s) THEN 3
+                WHEN LOWER(brand) LIKE LOWER(%s) THEN 4
+                ELSE 5
+            END AS rank
         FROM products
         WHERE LOWER(name) LIKE LOWER(%s)
-        ORDER BY name
+           OR LOWER(brand) LIKE LOWER(%s)
+        ORDER BY rank, name
         LIMIT %s
-    """, (f"%{query}%", limit))
+    """, (
+        f"{query}%",
+        f"{query}%",
+        f"%{query}%",
+        f"%{query}%",
+        f"%{query}%",
+        f"%{query}%",
+        limit,
+    ))
 
     rows = cur.fetchall()
 
@@ -100,7 +116,8 @@ def product_prices(
             pr.unit_price,
             pr.best_price_30,
             pr.special_price,
-            pr.import_date
+            pr.import_date,
+            p.quantity
         FROM products p
         JOIN chains c ON p.chain_id = c.id
         JOIN prices pr
@@ -126,8 +143,6 @@ def product_prices(
         sql += " ORDER BY pr.price DESC NULLS LAST"
     else:
         sql += " ORDER BY pr.price ASC NULLS LAST"
-    
-    sql += " LIMIT 200"
 
     cur.execute(sql, params)
     rows = cur.fetchall()
@@ -143,6 +158,7 @@ def product_prices(
             "address": row[3],
             "city": row[4],
             "product_name": row[5],
+            "quantity": row[13],
             #"brand": row[6],
             #"category": row[7],
             "price": float(row[8]) if row[8] is not None else None,
