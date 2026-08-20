@@ -159,6 +159,8 @@
 
 /* --- Filters (chain / city / sort dropdowns + reset button) ------------- */
 .filters {
+  position: relative;
+  z-index: 2;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -197,34 +199,70 @@
   box-shadow: 0 0 0 4px var(--blue-ring);
 }
 
-/* Multi-select listboxes (chains / cities): a compact, on-brand box instead
-   of the oversized default listbox. The single sort <select> keeps its pill. */
-.filters select[multiple] {
-  width: 200px;
-  max-width: 100%;
-  height: 132px;
-  padding: 6px;
-  border-radius: var(--radius);
-  background-image: none;
-  overflow-y: auto;
-  line-height: 1.4;
-  cursor: default;
+.filter-dropdown {
+  position: relative;
 }
 
-.filters select[multiple] option {
-  padding: 7px 10px;
+.filter-dropdown .filter-trigger {
+  min-width: 150px;
+  padding: 10px 40px 10px 16px;
+  text-align: left;
+  color: var(--ui-text);
+  background-color: var(--ui-surface);
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'/></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  border-color: var(--ui-line);
+  box-shadow: var(--shadow-card);
+}
+
+.filter-dropdown .filter-trigger:hover {
+  color: var(--ui-text);
+  background-color: var(--ui-surface);
+  border-color: #cbd5e1;
+}
+
+.filter-dropdown .filter-trigger:focus {
+  outline: none;
+  border-color: var(--blue);
+  box-shadow: 0 0 0 4px var(--blue-ring);
+}
+
+.filter-menu {
+  position: absolute;
+  z-index: 1;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 220px;
+  max-height: 280px;
+  padding: 6px;
+  overflow-y: auto;
+  text-align: left;
+  background: var(--ui-surface);
+  border: 1px solid var(--ui-line);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 10px;
   border-radius: 8px;
   cursor: pointer;
 }
 
-/* Readable, on-brand highlight for selected options (the box-shadow inset
-   forces the fill across browsers, even when the listbox isn't focused). */
-.filters select[multiple] option:checked {
-  color: #ffffff;
-  background: var(--blue);
-  box-shadow: 0 0 0 100px var(--blue) inset;
-  -webkit-text-fill-color: #ffffff;
-  font-weight: 600;
+.filter-option:hover {
+  background: var(--blue-soft);
+}
+
+.filter-option input {
+  width: auto;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--blue);
+  box-shadow: none;
 }
 
 .filters button {
@@ -286,9 +324,7 @@
   letter-spacing: -0.01em;
 }
 
-/* Make the table's (class-less) container scroll horizontally on small
-   screens without touching the JSX. */
-.app div:has(> table) {
+.table-container {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -424,9 +460,13 @@
   }
 
   .filters select,
-  .filters select[multiple],
+  .filter-dropdown,
   .filters button {
     width: 100%;
+  }
+
+  .filter-menu {
+    right: 0;
   }
 
   .stats {

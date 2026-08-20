@@ -43,35 +43,77 @@ def search_products(
     query: str = Query(..., min_length=2),
     limit: int = Query(20, ge=1, le=100)
 ):
+    tokens = list(dict.fromkeys(query.lower().split()))
+    if not tokens:
+        return []
+    normalized_query = " ".join(tokens)
+
     conn = get_connection()
     cur = conn.cursor()
 
     cur.execute("""
-        SELECT DISTINCT
-            barcode,
-            name,
-            brand,
-            category,
-            quantity,
-            CASE
-                WHEN LOWER(brand) LIKE LOWER(%s) THEN 1
-                WHEN LOWER(name)  LIKE LOWER(%s) THEN 2
-                WHEN LOWER(name)  LIKE LOWER(%s) THEN 3
-                WHEN LOWER(brand) LIKE LOWER(%s) THEN 4
-                ELSE 5
-            END AS rank
-        FROM products
-        WHERE LOWER(name) LIKE LOWER(%s)
-           OR LOWER(brand) LIKE LOWER(%s)
-        ORDER BY rank, name
+        WITH product_variants AS (
+            SELECT
+                p.*,
+                CASE
+                    WHEN p.barcode ~ '^(?:[0-9]{8}|[0-9]{12,14})$' THEN 'ean:' || p.barcode
+                    ELSE 'product:' || p.chain_id || ':' || p.product_id
+                END AS product_identity
+            FROM products p
+        ),
+        matched_identities AS (
+            SELECT
+                product_identity,
+                MIN(
+                    CASE
+                        WHEN STARTS_WITH(LOWER(COALESCE(brand, '')), %s) THEN 1
+                        WHEN STARTS_WITH(LOWER(COALESCE(name, '')), %s) THEN 2
+                        WHEN STRPOS(LOWER(COALESCE(name, '')), %s) > 0 THEN 3
+                        WHEN STRPOS(LOWER(COALESCE(brand, '')), %s) > 0 THEN 4
+                        ELSE 5
+                    END
+                ) AS rank
+            FROM product_variants
+            CROSS JOIN UNNEST(%s::text[]) AS search_tokens(token)
+            GROUP BY product_identity
+            HAVING COUNT(DISTINCT token) FILTER (
+                WHERE STRPOS(LOWER(COALESCE(name, '')), token) > 0
+                   OR STRPOS(LOWER(COALESCE(brand, '')), token) > 0
+            ) = %s
+        ),
+        ranked_variants AS (
+            SELECT
+                p.*,
+                m.rank,
+                ROW_NUMBER() OVER (
+                    PARTITION BY p.product_identity
+                    ORDER BY
+                        CASE WHEN NULLIF(BTRIM(p.name), '') IS NOT NULL THEN 1 ELSE 0 END DESC,
+                        (
+                            CASE WHEN NULLIF(BTRIM(p.brand), '') IS NOT NULL THEN 1 ELSE 0 END
+                            + CASE WHEN NULLIF(BTRIM(p.quantity), '') IS NOT NULL THEN 1 ELSE 0 END
+                            + CASE WHEN NULLIF(BTRIM(p.category), '') IS NOT NULL THEN 1 ELSE 0 END
+                        ) DESC,
+                        LENGTH(BTRIM(COALESCE(p.name, ''))) DESC,
+                        LOWER(COALESCE(p.name, '')),
+                        p.chain_id,
+                        p.product_id
+                ) AS representative_order
+            FROM product_variants p
+            JOIN matched_identities m USING (product_identity)
+        )
+        SELECT barcode, name, brand, category, quantity, rank, product_identity
+        FROM ranked_variants
+        WHERE representative_order = 1
+        ORDER BY rank, name, barcode
         LIMIT %s
     """, (
-        f"{query}%",
-        f"{query}%",
-        f"%{query}%",
-        f"%{query}%",
-        f"%{query}%",
-        f"%{query}%",
+        normalized_query,
+        normalized_query,
+        normalized_query,
+        normalized_query,
+        tokens,
+        len(tokens),
         limit,
     ))
 
@@ -86,7 +128,8 @@ def search_products(
             "name": row[1],
             "brand": row[2],
             "category": row[3],
-            "quantity": row[4]
+            "quantity": row[4],
+            "id": row[6]
         }
         for row in rows
     ]

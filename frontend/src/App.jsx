@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import './App.css'
 
 const API_URL = 'https://cijene-app.onrender.com'
 //const API_URL = 'http://127.0.0.1:8000'
+const PRICE_BATCH_SIZE = 20
 
 function App() {
   const [query, setQuery] = useState('')
@@ -11,10 +12,13 @@ function App() {
 
   const [selectedProduct, setSelectedProduct] = useState(null)
   const [prices, setPrices] = useState([])
+  const [visiblePriceCount, setVisiblePriceCount] = useState(PRICE_BATCH_SIZE)
 
   const [selectedChains, setSelectedChains] = useState([])
   const [selectedCities, setSelectedCities] = useState([])
   const [sortOrder, setSortOrder] = useState('asc')
+  const [openDropdown, setOpenDropdown] = useState(null)
+  const filtersRef = useRef(null)
 
   const [chains, setChains] = useState([])
   const [cities, setCities] = useState([])
@@ -38,6 +42,17 @@ function App() {
   }, [])
 
   useEffect(() => {
+    function closeDropdowns(event) {
+      if (filtersRef.current && !filtersRef.current.contains(event.target)) {
+        setOpenDropdown(null)
+      }
+    }
+
+    document.addEventListener('mousedown', closeDropdowns)
+    return () => document.removeEventListener('mousedown', closeDropdowns)
+  }, [])
+
+  useEffect(() => {
     if (query.length < 2) {
       setProducts([])
       setLoading(false)
@@ -54,17 +69,22 @@ function App() {
     setSelectedCities([])
     setSortOrder('asc')
 
+    const controller = new AbortController()
     const timeoutId = setTimeout(async () => {
       setLoading(true)
 
       try {
         const response = await fetch(
-          `${API_URL}/search?query=${encodeURIComponent(query)}&limit=10`
+          `${API_URL}/search?query=${encodeURIComponent(query)}&limit=10`,
+          { signal: controller.signal }
         )
 
         const data = await response.json()
         setProducts(data)
       } catch (error) {
+        if (error.name === 'AbortError') {
+          return
+        }
         console.error('Greška kod dohvaćanja proizvoda:', error)
         setProducts([])
       } finally {
@@ -72,10 +92,15 @@ function App() {
       }
     }, 400)
 
-    return () => clearTimeout(timeoutId)
+    return () => {
+      clearTimeout(timeoutId)
+      controller.abort()
+    }
   }, [query, selectedProduct])
 
   function handleSearchChange(value) {
+    setOpenDropdown(null)
+    setVisiblePriceCount(PRICE_BATCH_SIZE)
     setQuery(value)
   }
 
@@ -85,6 +110,7 @@ function App() {
     cities = selectedCities,
     sort = sortOrder
   ) {
+    setVisiblePriceCount(PRICE_BATCH_SIZE)
     setSelectedProduct(product)
     setQuery(product.name)
     setProducts([])
@@ -107,6 +133,7 @@ function App() {
   }
 
   function resetFilters() {
+    setOpenDropdown(null)
     setSelectedChains([])
     setSelectedCities([])
     setSortOrder('asc')
@@ -148,7 +175,7 @@ function App() {
         {products.map((product) => (
           <div
             className="product-card"
-            key={product.barcode}
+            key={product.id}
             onClick={() => selectProduct(product)}
           >
             <h3>{product.name}</h3>
@@ -162,38 +189,76 @@ function App() {
         <div>
           <h2>{selectedProduct.name}</h2>
 
-          <div className="filters">
-            <select
-              multiple
-              value={selectedChains}
-              onChange={(e) => {
-                const values = Array.from(e.target.selectedOptions, (o) => o.value)
-                setSelectedChains(values)
-                selectProduct(selectedProduct, values, selectedCities, sortOrder)
-              }}
-            >
-              {chains.map((chain) => (
-                <option key={chain} value={chain}>
-                  {chain.charAt(0).toUpperCase() + chain.slice(1)}
-                </option>
-              ))}
-            </select>
+          <div className="filters" ref={filtersRef}>
+            <div className="filter-dropdown">
+              <button
+                type="button"
+                className="filter-trigger"
+                aria-expanded={openDropdown === 'chains'}
+                onClick={() => setOpenDropdown(openDropdown === 'chains' ? null : 'chains')}
+              >
+                {selectedChains.length === 0
+                  ? 'Svi lanci'
+                  : selectedChains.length === 1
+                    ? selectedChains[0].charAt(0).toUpperCase() + selectedChains[0].slice(1)
+                    : `${selectedChains.length} lanca`}
+              </button>
+              {openDropdown === 'chains' && (
+                <div className="filter-menu">
+                  {chains.map((chain) => (
+                    <label className="filter-option" key={chain}>
+                      <input
+                        type="checkbox"
+                        checked={selectedChains.includes(chain)}
+                        onChange={() => {
+                          const values = selectedChains.includes(chain)
+                            ? selectedChains.filter((value) => value !== chain)
+                            : [...selectedChains, chain]
+                          setSelectedChains(values)
+                          selectProduct(selectedProduct, values, selectedCities, sortOrder)
+                        }}
+                      />
+                      <span>{chain.charAt(0).toUpperCase() + chain.slice(1)}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
 
-            <select
-              multiple
-              value={selectedCities}
-              onChange={(e) => {
-                const values = Array.from(e.target.selectedOptions, (o) => o.value)
-                setSelectedCities(values)
-                selectProduct(selectedProduct, selectedChains, values, sortOrder)
-              }}
-            >
-              {cities.map((city) => (
-                <option key={city} value={city}>
-                  {city}
-                </option>
-              ))}
-            </select>
+            <div className="filter-dropdown">
+              <button
+                type="button"
+                className="filter-trigger"
+                aria-expanded={openDropdown === 'cities'}
+                onClick={() => setOpenDropdown(openDropdown === 'cities' ? null : 'cities')}
+              >
+                {selectedCities.length === 0
+                  ? 'Svi gradovi'
+                  : selectedCities.length === 1
+                    ? selectedCities[0]
+                    : `${selectedCities.length} grada`}
+              </button>
+              {openDropdown === 'cities' && (
+                <div className="filter-menu">
+                  {cities.map((city) => (
+                    <label className="filter-option" key={city}>
+                      <input
+                        type="checkbox"
+                        checked={selectedCities.includes(city)}
+                        onChange={() => {
+                          const values = selectedCities.includes(city)
+                            ? selectedCities.filter((value) => value !== city)
+                            : [...selectedCities, city]
+                          setSelectedCities(values)
+                          selectProduct(selectedProduct, selectedChains, values, sortOrder)
+                        }}
+                      />
+                      <span>{city}</span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
 
             <select
               value={sortOrder}
@@ -235,7 +300,8 @@ function App() {
             </div>
           )}
 
-          <table>
+          <div className="table-container">
+            <table>
             <thead>
               <tr>
                 <th>Lanac</th>
@@ -248,7 +314,7 @@ function App() {
             </thead>
 
             <tbody>
-              {prices.map((item, index) => (
+              {prices.slice(0, visiblePriceCount).map((item, index) => (
                 <tr
                   key={index}
                   className={
@@ -276,7 +342,19 @@ function App() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </div>
+
+          {visiblePriceCount < prices.length && (
+            <div className="filters">
+              <button
+                type="button"
+                onClick={() => setVisiblePriceCount((count) => count + PRICE_BATCH_SIZE)}
+              >
+                Prikaži još
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
