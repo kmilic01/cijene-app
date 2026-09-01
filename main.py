@@ -18,6 +18,7 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:5173",
         "https://cijene-app.onrender.com"
+        "https://cijene-frontend.onrender.com"
     ],
     allow_credentials=True,
     allow_methods=["*"],
