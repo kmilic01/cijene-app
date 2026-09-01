@@ -17,7 +17,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
-        "https://cijene-app.onrender.com"
+        "https://cijene-app.onrender.com",
         "https://cijene-frontend.onrender.com"
     ],
     allow_credentials=True,
